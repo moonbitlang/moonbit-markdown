@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /*
  *   Markdown linter for MoonBit.
  *   Usage: node markdown_linter.js <inputFile>
