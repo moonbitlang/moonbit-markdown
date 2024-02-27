@@ -1,0 +1,15 @@
+{
+  "name": "moonbit-markdown",
+  "version": "1.0.0",
+  "description": "markdown linter for MoonBit",
+  "main": "markdown_linter.js",
+  "bin": "markdown_linter.js",
+  "author": "moonbitlang",
+  "license": "ISC",
+  "dependencies": {
+    "fs": "0.0.1-security",
+    "markdown-it": "^14.0.0",
+    "path": "^0.12.7",
+    "temp": "^0.9.4"
+  }
+}
