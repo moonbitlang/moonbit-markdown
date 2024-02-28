@@ -29,18 +29,34 @@ const { execSync } = require("child_process");
 const temp = require("temp").track();
 
 const md = new MarkdownIt();
+var hasErrors = false;
 
-// const [, , inputFile] = process.argv;
 for (const inputFile of files) {
-  process(inputFile);
+  processMarkdown(inputFile);
 }
 
-function process(inputFile) {
+function executeCommandLine(workingDir, command) {
+  try {
+    const output = execSync(command, { encoding: "utf-8", stdio: "pipe", cwd: workingDir });
+    return output.trim();
+  } catch (error) {
+    return error.stdout.trim() + error.stderr.trim();
+  }
+}
+
+function makeTempProject(projectName) {
+  const projectPath = temp.mkdirSync();
+  fs.writeFileSync(path.join(projectPath, "/moon.mod.json"), `{ "name": "${projectName}" }`, "utf-8");
+  fs.writeFileSync(path.join(projectPath, "/moon.pkg.json"), `{"is_main": true}`, "utf-8");
+  return projectPath;
+}
+
+function processMarkdown(inputFile) {
   const readmeFilename = path.basename(inputFile);
   const readme = fs.readFileSync(inputFile, "utf-8");
 
   // parse readme and find codeblocks
-  const tokens = md.parse(readme,{});
+  const tokens = md.parse(readme, {});
   var codeBlocks = [];
 
   tokens.forEach((token, index) => {
@@ -77,33 +93,44 @@ function process(inputFile) {
     return original + (line - generated);
   }
 
-  // call moonc to compile the code
-  function executeCommandLine(command) {
-    try {
-      const output = execSync(command, { encoding: "utf-8", stdio: "pipe" });
-      return output.trim();
-    } catch (error) {
-      return error.stderr.trim();
-    }
-  }
-
   const source = codeBlocks.reduce((acc, { content }) => acc + content, "");
-  const tempFile = temp.openSync({ suffix: ".mbt" }).path;
-  fs.writeFileSync(tempFile, source, "utf-8");
-  const compileOutput = executeCommandLine(`moonc compile ${tempFile}`);
+
+  // create a temporary project to run type checking and testing
+  const projectPath = makeTempProject(path.basename(inputFile, ".md"));
+  fs.writeFileSync(path.join(projectPath, "main.mbt"), source, "utf-8");
+
+  // run moon test
+  const checkOutput = executeCommandLine(projectPath, `moon test`);
+
+  // cleanup the temporary project
   temp.cleanupSync();
 
   // process the diagnostics
-  const diagnosticPattern = /\b(.+\.mbt):(\d+):(\d+)-(\d+):(\d+)/g;
+  const diagnosticPattern = /^(.+\.mbt):(\d+):(\d+)-(\d+):(\d+)/gm;
+  const moonFailedPattern = /failed: moonc .+\n/g;
 
-  const diagnostics = compileOutput.replace(
-    diagnosticPattern,
-    (_, file, beginLine, beginColumn, endLine, endColumn) => {
-      const realBeginLine = getRealLine(sourceMap, parseInt(beginLine));
-      const realEndLine = getRealLine(sourceMap, parseInt(endLine));
-      return `${readmeFilename}:${realBeginLine}:${beginColumn}-${realEndLine}:${endColumn}`;
-    }
-  );
+  const diagnostics = checkOutput
+    .replace( // replace location with real location in markdown
+      diagnosticPattern,
+      (_, file, beginLine, beginColumn, endLine, endColumn) => {
+        const realBeginLine = getRealLine(sourceMap, parseInt(beginLine));
+        const realEndLine = getRealLine(sourceMap, parseInt(endLine));
+        return `${readmeFilename}:${realBeginLine}:${beginColumn}-${realEndLine}:${endColumn}`;
+      }
+    )
+    .replace( // remove unused output
+      moonFailedPattern,
+      _ => {
+        hashErrors = true;
+        return ""
+      }
+    )
 
   console.log(diagnostics);
+}
+
+if (hasErrors) {
+  process.exit(1)
+} else {
+  process.exit(0)
 }
