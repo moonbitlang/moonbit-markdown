@@ -1,6 +1,6 @@
 {
   "name": "@moonbit/mdbt",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "markdown linter for MoonBit",
   "main": "./markdown_linter.js",
   "bin": {

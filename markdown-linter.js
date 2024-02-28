@@ -40,7 +40,7 @@ function process(inputFile) {
   const readme = fs.readFileSync(inputFile, "utf-8");
 
   // parse readme and find codeblocks
-  const tokens = md.parse(readme);
+  const tokens = md.parse(readme,{});
   var codeBlocks = [];
 
   tokens.forEach((token, index) => {
