@@ -6,6 +6,12 @@ This is a Markdown linter for MoonBit. It gathers all MoonBit codes in Markdown,
 
 To use the MoonBit Markdown Linter, you need to install the [MoonBit compiler](https://www.moonbitlang.com/download/).
 
+# Install
+
+```
+npm install -g @moonbit/markdown-linter
+```
+
 # Usage
 
 Create a markdown file `fib.md`, write some MoonBit code in code block:
@@ -27,7 +33,7 @@ Create a markdown file `fib.md`, write some MoonBit code in code block:
 Check it by MoonBit markdown linter.
 
 ```
-node markdown-linter.js fib.md
+mdlint fib.md
 ```
 
 ```

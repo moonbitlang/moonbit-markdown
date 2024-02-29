@@ -1,10 +1,10 @@
 {
-  "name": "@moonbit/mdbt",
+  "name": "@moonbit/markdown-linter",
   "version": "0.1.6",
   "description": "markdown linter for MoonBit",
   "main": "./markdown-linter.js",
   "bin": {
-    "lint": "./markdown-linter.js"
+    "mdlint": "./markdown-linter.js"
   },
   "author": "moonbitlang",
   "license": "ISC",
