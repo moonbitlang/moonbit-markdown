@@ -18,7 +18,7 @@ const cli = parseArgs({
 
 if (cli.values.version) {
   console.log(`Markdown linter ${require("./package.json").version}`);
-  process.exit(0);
+  globalThis.process.exit(0);
 }
 
 const files = cli.positionals;
