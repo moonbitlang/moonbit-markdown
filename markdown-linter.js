@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 /*
  *   Markdown linter for MoonBit.
  *   Usage: node markdown_linter.js <inputFile>
@@ -68,7 +69,7 @@ function processMarkdown(inputFile) {
   });
 
   // generate source map
-  sourceMap = [];
+  var sourceMap = [];
   var line = 1;
   codeBlocks.forEach(({ content, beginLine, endLine }) => {
     sourceMap.push({
@@ -121,7 +122,7 @@ function processMarkdown(inputFile) {
     .replace( // remove unused output
       moonFailedPattern,
       _ => {
-        hashErrors = true;
+        hasErrors = true;
         return ""
       }
     )
