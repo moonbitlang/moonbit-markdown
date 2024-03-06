@@ -48,7 +48,7 @@ function executeCommandLine(workingDir, command) {
 function makeTempProject(projectName) {
   const projectPath = temp.mkdirSync();
   fs.writeFileSync(path.join(projectPath, "/moon.mod.json"), `{ "name": "${projectName}" }`, "utf-8");
-  fs.writeFileSync(path.join(projectPath, "/moon.pkg.json"), `{"is_main": true}`, "utf-8");
+  fs.writeFileSync(path.join(projectPath, "/moon.pkg.json"), `{}`, "utf-8");
   return projectPath;
 }
 
