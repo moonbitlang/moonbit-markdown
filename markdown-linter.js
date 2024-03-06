@@ -5,15 +5,14 @@
  *   Usage: node markdown_linter.js <inputFile>
  */
 const { parseArgs } = require("node:util");
-const options = {
-  version: {
-    type: "boolean",
-    short: "v",
-  },
-};
 
 const cli = parseArgs({
-  options: options,
+  options: {
+    version: {
+      type: "boolean",
+      short: "v",
+    },
+  },
   allowPositionals: true,
 });
 
@@ -24,9 +23,9 @@ if (cli.values.version) {
 
 const files = cli.positionals;
 const MarkdownIt = require("markdown-it");
-const fs = require("fs");
-const path = require("path");
-const { execSync } = require("child_process");
+const fs = require("node:fs");
+const path = require("node:path");
+const { execSync } = require("node:child_process");
 const temp = require("temp").track();
 
 const md = new MarkdownIt();
@@ -64,7 +63,9 @@ function processMarkdown(inputFile) {
     const codeType = token.info.trim().toLowerCase();
     if (codeType.startsWith("mbt") || codeType.startsWith("moonbit")) {
       const { content, map } = token;
-      codeBlocks.push({ content, beginLine: map[0] + 1, endLine: map[1] + 1 });
+      if (map) {
+        codeBlocks.push({ content, beginLine: map[0] + 1, endLine: map[1] + 1 });
+      }
     }
   });
 
