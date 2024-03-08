@@ -60,25 +60,72 @@ function processMarkdown(inputFile) {
   var codeBlocks = [];
 
   tokens.forEach((token, index) => {
-    const codeType = token.info.trim().toLowerCase();
-    if (codeType.startsWith("mbt") || codeType.startsWith("moonbit")) {
+    const codeInfo = token.info.trim()
+
+    if (codeInfo.toLowerCase().startsWith("mbt") || codeInfo.toLowerCase().startsWith("moonbit")) {
+      const info = codeInfo.split(",").map(s => s.trim());
+      var kind;
+      if (info.length > 1) {
+        switch (info[1].toLowerCase()) {
+          case "init":
+            kind = "init";
+            break;
+          case "expr":
+            kind = "expr";
+            break;
+          default:
+            kind = "normal";
+        }
+      } else {
+        kind = "normal";
+      }
       const { content, map } = token;
       if (map) {
-        codeBlocks.push({ content, beginLine: map[0] + 1, endLine: map[1] + 1 });
+        codeBlocks.push({ content, kind, beginLine: map[0] + 1, endLine: map[1] + 1 });
       }
     }
   });
 
+
   // generate source map
   var sourceMap = [];
   var line = 1;
-  codeBlocks.forEach(({ content, beginLine, endLine }) => {
+
+  function countLines(str) {
+    return str.split("\n").length - 1;
+  }
+
+  codeBlocks.map(block => {
+    var wrapper;
+    switch (block.kind) {
+      case "init":
+        wrapper = { leading: "fn init {\n", trailing: "\n}\n" };
+        break;
+      case "expr":
+        wrapper = { leading: "fn init {debug(\n", trailing: "\n)}\n" };
+        break;
+      default:
+        wrapper = { leading: "", trailing: "" };
+        break;
+    }
+
+    const leadingLines = countLines(wrapper.leading);
+    const contentLines = countLines(block.content);
+    const trailingLines = countLines(wrapper.trailing);
+
     sourceMap.push({
-      original: beginLine + 1, // 1 based line number in markdown
-      generated: line, // 1 based line number in the generated mbt source
+      original: block.beginLine + 1, // 1 based line number in markdown
+      generated: line + leadingLines, // 1 based line number in the generated mbt source
     });
-    line += content.split("\n").length - 1;
-    sourceMap.push({ original: endLine - 1, generated: line });
+
+    sourceMap.push({
+      original: block.endLine - 1,
+      generated: line + leadingLines + contentLines
+    });
+
+    line += leadingLines + contentLines + trailingLines;
+    block.content = wrapper.leading + block.content + wrapper.trailing;
+    return block;
   });
 
   // map location to real location in markdown
