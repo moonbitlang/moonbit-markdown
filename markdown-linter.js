@@ -67,9 +67,6 @@ function processMarkdown(inputFile) {
       var kind;
       if (info.length > 1) {
         switch (info[1].toLowerCase()) {
-          case "init":
-            kind = "init";
-            break;
           case "expr":
             kind = "expr";
             break;
@@ -98,11 +95,8 @@ function processMarkdown(inputFile) {
   codeBlocks.map(block => {
     var wrapper;
     switch (block.kind) {
-      case "init":
-        wrapper = { leading: "fn init {\n", trailing: "\n}\n" };
-        break;
       case "expr":
-        wrapper = { leading: "fn init {debug(\n", trailing: "\n)}\n" };
+        wrapper = { leading: "fn init {debug({\n", trailing: "\n})}\n" };
         break;
       default:
         wrapper = { leading: "", trailing: "" };

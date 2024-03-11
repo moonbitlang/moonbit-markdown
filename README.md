@@ -22,7 +22,7 @@ Create a markdown file `fib.md`, write some MoonBit code in code block:
 
     Calculate the nth Fibonacci number using recursion and pattern matching.
     
-    ```mbt
+    ```moonbit
     fn fib(n : Int) -> Int {
         match n {
             0 => 0
@@ -48,29 +48,23 @@ In file identity.md:
 
     # Identity
 
-    ```mbt
+    ```moonbit
     fn id[T : Eq](x : T) -> T {
-    x
+      x
     }
-    ```
-
-    Print `id(5)` in `init` function.
-
-    ```mbt init
-    debug(id(5))
     ```
 
     You can also write expression directly.
 
-    ```mbt expr
+    ```moonbit expr
     id(5)
     ```
 
     Test function `id`.
 
-    ```mbt
+    ```moonbit
     test "id" {
-    if id(5) != 5 { return Result::Err("test failed") }
+        if id(5) != 5 { return Result::Err("test failed") }
     }
     ```
 
@@ -78,7 +72,6 @@ Run test and evaluate the expression by `mdlint`:
 
 ```
 $ mdlint identity.md
-5
 5
 running 1 tests in package identity
 test identity::id ... ok
