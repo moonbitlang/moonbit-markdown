@@ -63,7 +63,7 @@ function processMarkdown(inputFile) {
     const codeInfo = token.info.trim()
 
     if (codeInfo.toLowerCase().startsWith("mbt") || codeInfo.toLowerCase().startsWith("moonbit")) {
-      const info = codeInfo.split(",").map(s => s.trim());
+      const info = codeInfo.split(" ").map(s => s.trim());
       var kind;
       if (info.length > 1) {
         switch (info[1].toLowerCase()) {

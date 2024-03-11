@@ -56,13 +56,13 @@ In file identity.md:
 
     Print `id(5)` in `init` function.
 
-    ```mbt, init
+    ```mbt init
     debug(id(5))
     ```
 
     You can also write expression directly.
 
-    ```mbt, expr
+    ```mbt expr
     id(5)
     ```
 
