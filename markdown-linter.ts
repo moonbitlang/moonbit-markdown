@@ -148,14 +148,11 @@ function processMarkdown(inputFile) {
     processedCodeBlocks.push(block);
   });
 
-  console.log(sourceMap)
-
   // map location to real location in markdown
   function getRealLine(sourceMap : Array<LocationMapping>, line : number) {
     function find(line : number, l : number, r : number) {
       if (l >= r) return sourceMap[l];
       var m = Math.floor((l + r) / 2);
-      console.log("m:", m, "len:", sourceMap.length, "item:", sourceMap[m])
       const currentLine = sourceMap[m].generatedLine;
       if (currentLine > line) return find(line, l, m - 1);
       if (currentLine < line) return find(line, m + 1, r);
