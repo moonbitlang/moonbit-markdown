@@ -70,6 +70,9 @@ function processMarkdown(inputFile) {
           case "expr":
             kind = "expr";
             break;
+          case "no-check":
+            kind = "no-check";
+            break;
           default:
             kind = "normal";
         }
@@ -91,13 +94,18 @@ function processMarkdown(inputFile) {
   function countLines(str) {
     return str.split("\n").length - 1;
   }
+  
 
-  codeBlocks.map(block => {
+  var processedCodeBlocks = []
+
+  codeBlocks.forEach(block => {
     var wrapper;
     switch (block.kind) {
       case "expr":
         wrapper = { leading: "fn init {debug({\n", trailing: "\n})}\n" };
         break;
+      case "no-check":
+        return;
       default:
         wrapper = { leading: "", trailing: "" };
         break;
@@ -119,7 +127,7 @@ function processMarkdown(inputFile) {
 
     line += leadingLines + contentLines + trailingLines;
     block.content = wrapper.leading + block.content + wrapper.trailing;
-    return block;
+    processedCodeBlocks.push(block);
   });
 
   // map location to real location in markdown
@@ -136,7 +144,7 @@ function processMarkdown(inputFile) {
     return original + (line - generated);
   }
 
-  const source = codeBlocks.reduce((acc, { content }) => acc + content, "");
+  const source = processedCodeBlocks.reduce((acc, { content }) => acc + content, "");
 
   // create a temporary project to run type checking and testing
   const projectPath = makeTempProject(path.basename(inputFile, ".md"));

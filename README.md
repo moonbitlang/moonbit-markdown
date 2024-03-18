@@ -78,3 +78,13 @@ test identity::id ... ok
 
 test result: 1 passed; 0 failed
 ```
+
+## Disable check
+
+You can also disable checking for some code block by sepcifying `no-check`.
+
+    ```moonbit no-check
+    // some pseudo code
+    fn id(x : T) -> T
+    fn succ(x : T) -> T
+    ```
