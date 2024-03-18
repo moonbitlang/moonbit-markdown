@@ -4,10 +4,10 @@
  *   Markdown linter for MoonBit.
  *   Usage: node markdown_linter.js <inputFile>
  */
-import MarkdownIt from "markdown-it";
+import * as MarkdownIt from "markdown-it";
 import { execSync } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join, basename } from "node:path";
 import { parseArgs } from "node:util";
 import { track } from "temp";
 
@@ -47,14 +47,14 @@ function executeCommandLine(workingDir, command) {
 
 function makeTempProject(projectName) {
   const projectPath = temp.mkdirSync();
-  fs.writeFileSync(path.join(projectPath, "/moon.mod.json"), `{ "name": "${projectName}" }`, "utf-8");
-  fs.writeFileSync(path.join(projectPath, "/moon.pkg.json"), `{}`, "utf-8");
+  writeFileSync(join(projectPath, "/moon.mod.json"), `{ "name": "${projectName}" }`, "utf-8");
+  writeFileSync(join(projectPath, "/moon.pkg.json"), `{}`, "utf-8");
   return projectPath;
 }
 
 function processMarkdown(inputFile) {
-  const readmeFilename = path.basename(inputFile);
-  const readme = fs.readFileSync(inputFile, "utf-8");
+  const readmeFilename = basename(inputFile);
+  const readme = readFileSync(inputFile, "utf-8");
 
   // parse readme and find codeblocks
   const tokens = md.parse(readme, {});
@@ -148,8 +148,8 @@ function processMarkdown(inputFile) {
   const source = processedCodeBlocks.reduce((acc, { content }) => acc + content, "");
 
   // create a temporary project to run type checking and testing
-  const projectPath = makeTempProject(path.basename(inputFile, ".md"));
-  fs.writeFileSync(path.join(projectPath, "main.mbt"), source, "utf-8");
+  const projectPath = makeTempProject(basename(inputFile, ".md"));
+  writeFileSync(join(projectPath, "main.mbt"), source, "utf-8");
 
   // run moon test
   const checkOutput = executeCommandLine(projectPath, `moon test`);
