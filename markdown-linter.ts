@@ -52,13 +52,25 @@ function makeTempProject(projectName) {
   return projectPath;
 }
 
+type LocationMapping = {
+  originalLine : number;
+  generatedLine : number;
+};
+
+type CodeBlock = {
+  content: string;
+  kind: "normal" | "expr" | "no-check";
+  beginLine : number;
+  endLine : number;
+};
+
 function processMarkdown(inputFile) {
   const readmeFilename = basename(inputFile);
   const readme = readFileSync(inputFile, "utf-8");
 
   // parse readme and find codeblocks
   const tokens = md.parse(readme, {});
-  var codeBlocks = [];
+  var codeBlocks : Array<CodeBlock> = [];
 
   tokens.forEach((token, index) => {
     const codeInfo = token.info.trim()
@@ -82,25 +94,30 @@ function processMarkdown(inputFile) {
       }
       const { content, map } = token;
       if (map) {
-        codeBlocks.push({ content, kind, beginLine: map[0] + 1, endLine: map[1] + 1 });
+        codeBlocks.push({ 
+          content, 
+          kind, 
+          beginLine: map[0] + 1, 
+          endLine: map[1] + 1
+        });
       }
     }
   });
 
 
   // generate source map
-  var sourceMap = [];
+  var sourceMap : Array<LocationMapping> = [];
   var line = 1;
 
-  function countLines(str) {
+  function countLines(str : string) {
     return str.split("\n").length - 1;
   }
 
 
-  var processedCodeBlocks = []
+  var processedCodeBlocks : Array<CodeBlock> = []
 
   codeBlocks.forEach(block => {
-    var wrapper;
+    var wrapper : { leading: string, trailing: string };
     switch (block.kind) {
       case "expr":
         wrapper = { leading: "fn init {debug({\n", trailing: "\n})}\n" };
@@ -117,13 +134,13 @@ function processMarkdown(inputFile) {
     const trailingLines = countLines(wrapper.trailing);
 
     sourceMap.push({
-      original: block.beginLine + 1, // 1 based line number in markdown
-      generated: line + leadingLines, // 1 based line number in the generated mbt source
+      originalLine: block.beginLine + 1, // 1 based line number in markdown
+      generatedLine: line + leadingLines, // 1 based line number in the generated mbt source
     });
 
     sourceMap.push({
-      original: block.endLine - 1,
-      generated: line + leadingLines + contentLines
+      originalLine: block.endLine - 1,
+      generatedLine: line + leadingLines + contentLines
     });
 
     line += leadingLines + contentLines + trailingLines;
@@ -131,18 +148,21 @@ function processMarkdown(inputFile) {
     processedCodeBlocks.push(block);
   });
 
+  console.log(sourceMap)
+
   // map location to real location in markdown
-  function getRealLine(sourceMap, line) {
-    function find(line, l, r) {
-      if (l > r) return sourceMap[l];
+  function getRealLine(sourceMap : Array<LocationMapping>, line : number) {
+    function find(line : number, l : number, r : number) {
+      if (l >= r) return sourceMap[l];
       var m = Math.floor((l + r) / 2);
-      const currentLine = sourceMap[m].generated;
+      console.log("m:", m, "len:", sourceMap.length, "item:", sourceMap[m])
+      const currentLine = sourceMap[m].generatedLine;
       if (currentLine > line) return find(line, l, m - 1);
       if (currentLine < line) return find(line, m + 1, r);
       return sourceMap[m];
     }
-    const { original, generated } = find(line, 0, sourceMap.length);
-    return original + (line - generated);
+    const { originalLine, generatedLine } = find(line, 0, sourceMap.length - 1);
+    return originalLine + (line - generatedLine);
   }
 
   const source = processedCodeBlocks.reduce((acc, { content }) => acc + content, "");
