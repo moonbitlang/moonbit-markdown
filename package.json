@@ -11,5 +11,14 @@
   "dependencies": {
     "markdown-it": "^14.0.0",
     "temp": "^0.9.4"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^13.0.7",
+    "@types/node": "^20.11.28",
+    "@types/temp": "^0.9.4",
+    "typescript": "^5.4.2"
+  },
+  "scripts": {
+    "prepublishOnly": "tsc markdown-linter.ts"
   }
 }

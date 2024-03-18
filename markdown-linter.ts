@@ -4,7 +4,12 @@
  *   Markdown linter for MoonBit.
  *   Usage: node markdown_linter.js <inputFile>
  */
-const { parseArgs } = require("node:util");
+import MarkdownIt from "markdown-it";
+import { execSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { parseArgs } from "node:util";
+import { track } from "temp";
 
 const cli = parseArgs({
   options: {
@@ -22,11 +27,7 @@ if (cli.values.version) {
 }
 
 const files = cli.positionals;
-const MarkdownIt = require("markdown-it");
-const fs = require("node:fs");
-const path = require("node:path");
-const { execSync } = require("node:child_process");
-const temp = require("temp").track();
+const temp = track();
 
 const md = new MarkdownIt();
 var hasErrors = false;
@@ -94,7 +95,7 @@ function processMarkdown(inputFile) {
   function countLines(str) {
     return str.split("\n").length - 1;
   }
-  
+
 
   var processedCodeBlocks = []
 
