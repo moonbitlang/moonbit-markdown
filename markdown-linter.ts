@@ -187,7 +187,8 @@ function processMarkdown(inputFile) {
       (_, file, beginLine, beginColumn, endLine, endColumn) => {
         const realBeginLine = getRealLine(sourceMap, parseInt(beginLine));
         const realEndLine = getRealLine(sourceMap, parseInt(endLine));
-        return `${readmeFilename}:${realBeginLine}:${beginColumn}-${realEndLine}:${endColumn}`;
+        const fullPath = join(process.cwd(), inputFile);
+        return `${fullPath}:${realBeginLine}:${beginColumn}-${realEndLine}:${endColumn}`;
       }
     )
     .replace( // remove unused output
