@@ -53,26 +53,26 @@ function makeTempProject(projectName) {
 }
 
 type LocationMapping = {
-  originalLine : number;
-  generatedLine : number;
+  origin: CodeBlock;
+  generatedLine: number;
+  generatedColumn: number;
 };
 
 type CodeBlock = {
   content: string;
   kind: "normal" | "expr" | "no-check";
-  beginLine : number;
-  endLine : number;
+  beginLine: number;
+  endLine: number;
 };
 
 function processMarkdown(inputFile) {
-  const readmeFilename = basename(inputFile);
   const readme = readFileSync(inputFile, "utf-8");
 
   // parse readme and find codeblocks
   const tokens = md.parse(readme, {});
-  var codeBlocks : Array<CodeBlock> = [];
+  var codeBlocks: Array<CodeBlock> = [];
 
-  tokens.forEach((token, index) => {
+  tokens.forEach((token) => {
     const codeInfo = token.info.trim()
 
     if (codeInfo.toLowerCase().startsWith("mbt") || codeInfo.toLowerCase().startsWith("moonbit")) {
@@ -94,10 +94,10 @@ function processMarkdown(inputFile) {
       }
       const { content, map } = token;
       if (map) {
-        codeBlocks.push({ 
-          content, 
-          kind, 
-          beginLine: map[0] + 1, 
+        codeBlocks.push({
+          content,
+          kind,
+          beginLine: map[0] + 2, // 1 based line number in markdown + fence line
           endLine: map[1] + 1
         });
       }
@@ -106,21 +106,23 @@ function processMarkdown(inputFile) {
 
 
   // generate source map
-  var sourceMap : Array<LocationMapping> = [];
+  var sourceMap: Array<LocationMapping> = [];
   var line = 1;
 
-  function countLines(str : string) {
+  function countLines(str: string) {
     return str.split("\n").length - 1;
   }
 
 
-  var processedCodeBlocks : Array<CodeBlock> = []
+  var processedCodeBlocks: Array<CodeBlock> = []
 
   codeBlocks.forEach(block => {
-    var wrapper : { leading: string, trailing: string };
+    var wrapper: { leading: string, trailing: string };
+    var generatedColumn = 0;
     switch (block.kind) {
       case "expr":
-        wrapper = { leading: "fn init {debug({\n", trailing: "\n})}\n" };
+        wrapper = { leading: "fn init { {\n", trailing: "\n} |> debug }\n" };
+        generatedColumn = 2;
         break;
       case "no-check":
         return;
@@ -134,32 +136,41 @@ function processMarkdown(inputFile) {
     const trailingLines = countLines(wrapper.trailing);
 
     sourceMap.push({
-      originalLine: block.beginLine + 1, // 1 based line number in markdown
+      origin: block,
       generatedLine: line + leadingLines, // 1 based line number in the generated mbt source
-    });
-
-    sourceMap.push({
-      originalLine: block.endLine - 1,
-      generatedLine: line + leadingLines + contentLines
+      generatedColumn
     });
 
     line += leadingLines + contentLines + trailingLines;
-    block.content = wrapper.leading + block.content + wrapper.trailing;
+    block.content = wrapper.leading + block.content.replace(/^/gm, " ".repeat(generatedColumn)) + wrapper.trailing;
     processedCodeBlocks.push(block);
   });
 
   // map location to real location in markdown
-  function getRealLine(sourceMap : Array<LocationMapping>, line : number) {
-    function find(line : number, l : number, r : number) {
-      if (l >= r) return sourceMap[l];
-      var m = Math.floor((l + r) / 2);
-      const currentLine = sourceMap[m].generatedLine;
-      if (currentLine > line) return find(line, l, m - 1);
-      if (currentLine < line) return find(line, m + 1, r);
-      return sourceMap[m];
+  function resolveMapping(sourceMap: Array<LocationMapping>, line: number, column: number): { column: number, line: number } {
+    let left = 0;
+    let right = sourceMap.length - 1;
+    let index = -1;
+
+    while (left <= right) {
+      const mid = Math.floor((left + right) / 2);
+      if (sourceMap[mid].generatedLine <= line) {
+        index = mid;
+        left = mid + 1;
+      } else {
+        right = mid - 1;
+      }
     }
-    const { originalLine, generatedLine } = find(line, 0, sourceMap.length - 1);
-    return originalLine + (line - generatedLine);
+
+    if (index === -1) {
+      index = sourceMap.length - 1;
+    }
+
+    const { origin, generatedLine, generatedColumn } = sourceMap[index];
+    return {
+      line: origin.beginLine + (line - generatedLine),
+      column: column - generatedColumn
+    };
   }
 
   const source = processedCodeBlocks.reduce((acc, { content }) => acc + content, "");
@@ -182,10 +193,15 @@ function processMarkdown(inputFile) {
     .replace( // replace location with real location in markdown
       diagnosticPattern,
       (_, file, beginLine, beginColumn, endLine, endColumn) => {
-        const realBeginLine = getRealLine(sourceMap, parseInt(beginLine));
-        const realEndLine = getRealLine(sourceMap, parseInt(endLine));
+        const { line: realBeginLine, column: realBeginColumn } = resolveMapping(sourceMap, parseInt(beginLine), parseInt(beginColumn));
+        const { line: realEndLine, column: realEndColumn } = resolveMapping(sourceMap, parseInt(endLine), parseInt(endColumn));
         const fullPath = join(process.cwd(), inputFile);
-        return `${fullPath}:${realBeginLine}:${beginColumn}-${realEndLine}:${endColumn}`;
+        if (realBeginLine === realEndLine) {
+          return `${fullPath}:${realBeginLine}:${realBeginColumn}-${realEndColumn}`;
+        } else {
+          return `${fullPath}:${realBeginLine}:${realBeginColumn}-${realEndLine}:${realEndColumn}`;
+        }
+        
       }
     )
     .replace( // remove unused output
