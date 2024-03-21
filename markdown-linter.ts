@@ -53,15 +53,15 @@ function makeTempProject(projectName) {
 }
 
 type LocationMapping = {
-  originalLine : number;
-  generatedLine : number;
+  originalLine: number;
+  generatedLine: number;
 };
 
 type CodeBlock = {
   content: string;
   kind: "normal" | "expr" | "no-check";
-  beginLine : number;
-  endLine : number;
+  beginLine: number;
+  endLine: number;
 };
 
 function processMarkdown(inputFile) {
@@ -70,7 +70,7 @@ function processMarkdown(inputFile) {
 
   // parse readme and find codeblocks
   const tokens = md.parse(readme, {});
-  var codeBlocks : Array<CodeBlock> = [];
+  var codeBlocks: Array<CodeBlock> = [];
 
   tokens.forEach((token, index) => {
     const codeInfo = token.info.trim()
@@ -94,10 +94,10 @@ function processMarkdown(inputFile) {
       }
       const { content, map } = token;
       if (map) {
-        codeBlocks.push({ 
-          content, 
-          kind, 
-          beginLine: map[0] + 1, 
+        codeBlocks.push({
+          content,
+          kind,
+          beginLine: map[0] + 1,
           endLine: map[1] + 1
         });
       }
@@ -106,18 +106,17 @@ function processMarkdown(inputFile) {
 
 
   // generate source map
-  var sourceMap : Array<LocationMapping> = [];
+  var sourceMap: Array<LocationMapping> = [];
   var line = 1;
 
-  function countLines(str : string) {
+  function countLines(str: string) {
     return str.split("\n").length - 1;
   }
 
-
-  var processedCodeBlocks : Array<CodeBlock> = []
+  var processedCodeBlocks: Array<CodeBlock> = []
 
   codeBlocks.forEach(block => {
-    var wrapper : { leading: string, trailing: string };
+    var wrapper: { leading: string, trailing: string };
     switch (block.kind) {
       case "expr":
         wrapper = { leading: "fn init {debug({\n", trailing: "\n})}\n" };
@@ -144,13 +143,13 @@ function processMarkdown(inputFile) {
     });
 
     line += leadingLines + contentLines + trailingLines;
-    block.content = wrapper.leading + block.content + wrapper.trailing;
+    block.content = wrapper.leading + (block.kind == 'expr' ? block.content.replace(/^/gm, "  ") : block.content) + wrapper.trailing;
     processedCodeBlocks.push(block);
   });
 
   // map location to real location in markdown
-  function getRealLine(sourceMap : Array<LocationMapping>, line : number) {
-    function find(line : number, l : number, r : number) {
+  function getRealLine(sourceMap: Array<LocationMapping>, line: number) {
+    function find(line: number, l: number, r: number) {
       if (l >= r) return sourceMap[l];
       var m = Math.floor((l + r) / 2);
       const currentLine = sourceMap[m].generatedLine;
