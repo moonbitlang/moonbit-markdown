@@ -119,7 +119,7 @@ function processMarkdown(inputFile) {
     var wrapper: { leading: string, trailing: string };
     switch (block.kind) {
       case "expr":
-        wrapper = { leading: "fn init {debug({\n", trailing: "\n})}\n" };
+        wrapper = { leading: "fn init {println({\n", trailing: "\n})}\n" };
         break;
       case "no-check":
         return;
