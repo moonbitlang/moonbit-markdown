@@ -1,6 +1,6 @@
 {
   "name": "@moonbit/markdown-linter",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "markdown linter for MoonBit",
   "main": "./markdown-linter.js",
   "bin": {
@@ -9,18 +9,18 @@
   "author": "moonbitlang",
   "license": "ISC",
   "dependencies": {
-    "markdown-it": "^14.0.0",
+    "markdown-it": "^14.1.0",
     "temp": "^0.9.4"
   },
   "devDependencies": {
-    "@types/markdown-it": "^13.0.7",
-    "@types/node": "^20.11.28",
+    "@types/markdown-it": "^13.0.8",
+    "@types/node": "^20.14.1",
     "@types/temp": "^0.9.4",
-    "typescript": "^5.4.2"
+    "typescript": "^5.4.5"
   },
   "scripts": {
     "dev": "tsc markdown-linter.ts && node markdown-linter.js",
     "prepublishOnly": "tsc markdown-linter.ts"
   },
-  "packageManager": "pnpm@8.15.5+sha256.4b4efa12490e5055d59b9b9fc9438b7d581a6b7af3b5675eb5c5f447cee1a589"
+  "packageManager": "pnpm@9.1.4+sha256.30a1801ac4e723779efed13a21f4c39f9eb6c9fbb4ced101bce06b422593d7c9"
 }
