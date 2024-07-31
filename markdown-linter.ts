@@ -31,7 +31,12 @@ const cli = parseArgs({
     suppress: {
       type: "string",
       short: "s",
-      description: "Suppress warnings globally",
+      description: "Suppress warnings from given comma-separated list",
+    },
+    ignore: {
+      type: "boolean",
+      short: "i",
+      description: "Ignore error codes from codeblocks",
     },
   },
   allowPositionals: true,
@@ -47,15 +52,16 @@ Options:
   -d, --dump                      Dump generated moon source code
   -s, --suppress | <list>         Suppress warnings from given comma-separated list
                  | all-warnings   Suppress all warnings
+  -i, --ignore                    Ignore error codes from codeblocks
 
 Example:
-  mdlint README.md -g -s=e0001,e0002
+  mdlint README.md -g -s=e1001,e1002
   `);
   process.exit(0);
 }
 
 var globalWarningsSuppressed = false;
-var errSet: Set<string> = new Set();
+var errSet: Set<number> = new Set();
 
 if (cli.values.version) {
   console.log(`Markdown linter ${require("./package.json").version}`);
@@ -66,7 +72,9 @@ if (cli.values.suppress) {
   if (cli.values.suppress == "all-warnings") {
     globalWarningsSuppressed = true;
   } else {
-    errSet = new Set(cli.values.suppress.toUpperCase().split(","));
+    errSet = new Set(
+      cli.values.suppress.split(",").map((s) => parseInt(s.substring(1)))
+    );
   }
 }
 
@@ -80,6 +88,27 @@ for (const inputFile of files) {
   processMarkdown(inputFile);
 }
 
+// for instantiating a error from moonc compiler
+type Location = {
+  line: number;
+  col: number;
+  offset: number;
+};
+
+type Loc = {
+  path: string;
+  start: Location;
+  end: Location;
+};
+
+type Diagnostic = {
+  $message_type: string;
+  level: string;
+  loc: Loc;
+  message: string;
+  error_code: number;
+};
+
 function executeCommandLine(workingDir, command) {
   try {
     const output = execSync(command, {
@@ -89,7 +118,8 @@ function executeCommandLine(workingDir, command) {
     });
     return output.trim();
   } catch (error) {
-    return error.stdout.trim() + error.stderr.trim();
+    hasErrors = true;
+    return error.stderr.trim() + " " + error.stdout.trim();
   }
 }
 
@@ -148,10 +178,12 @@ function processMarkdown(inputFile) {
             kind = "normal";
         }
         // parse error codes from codeblocks
-        info.slice(1).forEach((arg) => {
-          const errCodes = arg.match(/(?<=-)e\d+/g);
-          errCodes?.forEach((errCode) => errSet.add(errCode.toUpperCase()));
-        });
+        if (cli.values.ignore == false) {
+          info.slice(1).forEach((arg) => {
+            const errCodes = arg.match(/(?<=-e)\d+/gi);
+            errCodes?.forEach((errCode) => errSet.add(parseInt(errCode)));
+          });
+        }
       } else {
         kind = "normal";
       }
@@ -241,7 +273,53 @@ function processMarkdown(inputFile) {
   writeFileSync(join(projectPath, "main.mbt"), source, "utf-8");
 
   // run moon test
-  const checkOutput = executeCommandLine(projectPath, `moon test --no-render`);
+  const checkOutput = executeCommandLine(
+    projectPath,
+    `moon check --output-json -q`
+  );
+
+  const errList = checkOutput
+    .replace(/error: failed when checking.*\n/, "")
+    .split("\n")
+    .map((err) => {
+      return JSON.parse(err) as Diagnostic;
+    });
+
+  for (const err of errList) {
+    const { level, loc, message, error_code } = err;
+    const { path, start, end } = loc;
+    if (globalWarningsSuppressed && level == "warning") {
+      continue;
+    }
+    if (errSet.has(error_code)) {
+      continue;
+    }
+    const errLvl =
+      level == "error"
+        ? "\x1b[1;31mError\x1b[0m"
+        : "warning"
+        ? "\x1b[1;33mWarning\x1b[0m"
+        : level;
+    const errCode = `\x1b[31m[E${error_code}]\x1b[0m`;
+    const realBeginLine = getRealLine(sourceMap, start.line);
+    const realEndLine = getRealLine(sourceMap, end.line);
+    const errMsg = message.replace(
+      new RegExp(path + ":(\\d+):(\\d+)"),
+      (_, l, c) =>
+        `\x1b[4;37m${inputFile}:${getRealLine(
+          sourceMap,
+          parseInt(l)
+        )}:${c}\x1b[0m`
+    );
+
+    console.log(
+      `\x1b[4;37m${inputFile}:${
+        realBeginLine == realEndLine
+          ? realBeginLine + ":" + start.col
+          : realBeginLine + ":" + start.col + "-" + realEndLine + ":" + end.col
+      }\x1b[0m\n${errCode}\t${errLvl}: ${errMsg}`
+    );
+  }
 
   // dump generated code
   if (cli.values.dump) {
@@ -250,53 +328,6 @@ function processMarkdown(inputFile) {
 
   // cleanup the temporary project
   temp.cleanupSync();
-
-  // process the diagnostics
-  const diagnosticPattern = /(.+main\.mbt):(\d+):(\d+)-(\d+):(\d+)(.*)/g;
-  const moonFailedPattern = /failed: moonc .+\n/g;
-  const diagnostics = checkOutput
-    .replace(
-      // replace location with real location in markdown
-      diagnosticPattern,
-      (_, file, beginLine, beginColumn, endLine, endColumn, errMsg: string) => {
-        const realBeginLine = getRealLine(sourceMap, parseInt(beginLine));
-        const realEndLine = getRealLine(sourceMap, parseInt(endLine));
-        const path = inputFile;
-        const errCode = errMsg.match(/\[(E\d+)\]/);
-        if (globalWarningsSuppressed && /Warning|\(warning\)/.test(errMsg)) {
-          return "";
-        }
-        if (errCode && errSet.has(errCode[1])) {
-          return "";
-        }
-        const coloredErrMsg = errMsg
-          .replace(/(\[E\d+\])/, "\x1b[31m$1\x1b[0m")
-          .replace(/Warning|\(warning\)/, "\x1B[33mWarning\x1b[0m");
-        return `${path}:${realBeginLine}:${beginColumn}-${realEndLine}:${endColumn}\n  ${coloredErrMsg}`;
-      }
-    )
-    .replace(
-      // remove unused output
-      moonFailedPattern,
-      (_) => {
-        hasErrors = true;
-        return "";
-      }
-    )
-    .replace(
-      // redefine error
-      /defined\ at\ .*/g,
-      (_, file, line, column) => {
-        return `defined.`;
-      }
-    )
-    .replace(
-      // shrink consecutive newlines
-      /\n{2,}/g,
-      "\n"
-    );
-
-  console.log(diagnostics);
 }
 
 if (hasErrors) {
