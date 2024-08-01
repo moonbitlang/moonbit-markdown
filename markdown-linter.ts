@@ -152,16 +152,17 @@ function makeTempProject(projectName) {
   // );
   // writeFileSync(join(projectPath, "/moon.pkg.json"), `{}`, "utf-8");
   executeCommandLine(projectPath, `moon new ${projectName} --no-license --lib`);
+  const basepath = join(projectPath, projectName, "src");
   try {
     removeFiles(
-      join(projectPath, projectName, "top.mbt"),
-      join(projectPath, projectName, "lib", "hello.mbt"),
-      join(projectPath, projectName, "lib", "hello_test.mbt")
+      join(basepath, "top.mbt"),
+      join(basepath, "lib", "hello.mbt"),
+      join(basepath, "lib", "hello_test.mbt")
     );
   } catch (error) {
     console.log("Error: " + error.message);
   }
-  return join(projectPath, projectName);
+  return basepath;
 }
 
 type LocationMapping = {

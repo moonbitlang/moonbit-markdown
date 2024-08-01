@@ -51,14 +51,8 @@ fn fib(n : Int) -> Int {
 
 Use `mdlint test.md` to check (the actual output is colored):
 
-```
-./fib.md:19:4 // correctly mapped!
-[E1001] Warning: Warning: Unused function 'fib'
-./fib.md:22:14
-[E4014] Error: Expr Type Mismatch
-        has type : Bool
-        wanted   : Int
-```
+<img width="322" alt="image" src="https://github.com/user-attachments/assets/f636666e-fdd5-4c3d-a69f-ebb1a3303885">
+
 
 The line number is correctly mapped to that in the markdown document, this is especially useful for debugging. Note that for multiple markdown files, each of them results in a independent project.
 
