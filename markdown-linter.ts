@@ -2,11 +2,17 @@
 // @ts-check
 /*
  *   Markdown linter for MoonBit.
- *   Usage: node markdown_linter.js [args] <inputFile>
+ *   Usage: node markdown_linter.js [args] <inputFiles>
  */
 import * as MarkdownIt from "markdown-it";
 import { execSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  readFileSync,
+  rmSync,
+  writeFile,
+  writeFileSync,
+} from "node:fs";
 import { join, basename } from "node:path";
 import { parseArgs } from "node:util";
 import { track } from "temp";
@@ -36,6 +42,7 @@ const cli = parseArgs({
     ignore: {
       type: "boolean",
       short: "i",
+      default: false,
       description: "Ignore error codes from codeblocks",
     },
   },
@@ -44,18 +51,18 @@ const cli = parseArgs({
 
 if (cli.values.help) {
   console.log(`
-Usage: mdlint [args] <inputFile>
+Usage: mdlint [args] <inputFiles>
 
 Options:
   -h, --help                      Display this help message and exit
   -v, --version                   Display version information and exit
-  -d, --dump                      Dump generated moon source code
+  -d, --dump                      Dump generated moon source project
   -s, --suppress | <list>         Suppress warnings from given comma-separated list
                  | all-warnings   Suppress all warnings
   -i, --ignore                    Ignore error codes from codeblocks
 
 Example:
-  mdlint README.md -g -s=e1001,e1002
+  mdlint README.md -d -s=e1001,e1002
   `);
   process.exit(0);
 }
@@ -73,7 +80,10 @@ if (cli.values.suppress) {
     globalWarningsSuppressed = true;
   } else {
     errSet = new Set(
-      cli.values.suppress.split(",").map((s) => parseInt(s.substring(1)))
+      cli.values.suppress
+        .replace("=", "")
+        .split(",")
+        .map((s) => parseInt(s.substring(1)))
     );
   }
 }
@@ -119,19 +129,39 @@ function executeCommandLine(workingDir, command) {
     return output.trim();
   } catch (error) {
     hasErrors = true;
-    return error.stderr.trim() + " " + error.stdout.trim();
+    return error.stdout.trim();
+  }
+}
+
+function removeFiles(...paths: string[]) {
+  try {
+    paths.forEach((path) => {
+      rmSync(path);
+    });
+  } catch (error) {
+    console.log("Error: " + error.message);
   }
 }
 
 function makeTempProject(projectName) {
   const projectPath = temp.mkdirSync();
-  writeFileSync(
-    join(projectPath, "/moon.mod.json"),
-    `{ "name": "${projectName}" }`,
-    "utf-8"
-  );
-  writeFileSync(join(projectPath, "/moon.pkg.json"), `{}`, "utf-8");
-  return projectPath;
+  // writeFileSync(
+  //   join(projectPath, "/moon.mod.json"),
+  //   `{ "name": "${projectName}" }`,
+  //   "utf-8"
+  // );
+  // writeFileSync(join(projectPath, "/moon.pkg.json"), `{}`, "utf-8");
+  executeCommandLine(projectPath, `moon new ${projectName} --no-license --lib`);
+  try {
+    removeFiles(
+      join(projectPath, projectName, "top.mbt"),
+      join(projectPath, projectName, "lib", "hello.mbt"),
+      join(projectPath, projectName, "lib", "hello_test.mbt")
+    );
+  } catch (error) {
+    console.log("Error: " + error.message);
+  }
+  return join(projectPath, projectName);
 }
 
 type LocationMapping = {
@@ -144,6 +174,7 @@ type CodeBlock = {
   kind: "normal" | "expr" | "no-check" | "enclose";
   beginLine: number;
   endLine: number;
+  fileBelonged: string;
 };
 
 function processMarkdown(inputFile) {
@@ -152,17 +183,17 @@ function processMarkdown(inputFile) {
 
   // parse readme and find codeblocks
   const tokens = md.parse(readme, {});
-  var codeBlocks: Array<CodeBlock> = [];
-
+  const codeBlocks: Array<CodeBlock> = [];
+  const projectPath = makeTempProject(basename(inputFile, ".md"));
   tokens.forEach((token, index) => {
     const codeInfo = token.info.trim();
-
     if (
       codeInfo.toLowerCase().startsWith("mbt") ||
       codeInfo.toLowerCase().startsWith("moonbit")
     ) {
       const info = codeInfo.split(" ").map((s) => s.trim());
       var kind;
+      var fileBelonged: string = "top.mbt";
       if (info.length > 1) {
         switch (info[1].toLowerCase()) {
           case "expr":
@@ -178,12 +209,17 @@ function processMarkdown(inputFile) {
             kind = "normal";
         }
         // parse error codes from codeblocks
-        if (cli.values.ignore == false) {
-          info.slice(1).forEach((arg) => {
-            const errCodes = arg.match(/(?<=-e)\d+/gi);
-            errCodes?.forEach((errCode) => errSet.add(parseInt(errCode)));
-          });
+        {
+          if (cli.values.ignore == false)
+            info.forEach((arg) => {
+              const errCodes = arg.match(/(?<=-e)\d+/gi);
+              errCodes?.forEach((errCode) => errSet.add(parseInt(errCode)));
+            });
         }
+        info.forEach((arg) => {
+          const fileNames = arg.match(/(?<=-f=).*mbt/gi);
+          fileBelonged = fileNames ? basename(fileNames[0]) : fileBelonged;
+        });
       } else {
         kind = "normal";
       }
@@ -194,20 +230,21 @@ function processMarkdown(inputFile) {
           kind,
           beginLine: map[0] + 1,
           endLine: map[1] + 1,
+          fileBelonged: fileBelonged,
         });
       }
     }
   });
 
   // generate source map
-  var sourceMap: Array<LocationMapping> = [];
-  var line = 1;
+  const sourceMap: Map<string, Array<LocationMapping>> = new Map();
+  const line: Map<string, number> = new Map();
 
   function countLines(str: string) {
     return str.split("\n").length - 1;
   }
 
-  var processedCodeBlocks: Array<CodeBlock> = [];
+  const processedCodeBlocks: Map<string, Array<CodeBlock>> = new Map();
 
   codeBlocks.forEach((block) => {
     var wrapper: { leading: string; trailing: string };
@@ -225,28 +262,47 @@ function processMarkdown(inputFile) {
         break;
     }
 
+    line.set(block.fileBelonged, line.get(block.fileBelonged) || 1); // set default line number
+
+    // initialize source map and processed code blocks
+    sourceMap.set(
+      block.fileBelonged,
+      sourceMap.get(block.fileBelonged) || new Array<LocationMapping>()
+    );
+    processedCodeBlocks.set(
+      block.fileBelonged,
+      processedCodeBlocks.get(block.fileBelonged) || new Array<CodeBlock>()
+    );
+
     const leadingLines = countLines(wrapper.leading);
     const contentLines = countLines(block.content);
     const trailingLines = countLines(wrapper.trailing);
 
-    sourceMap.push({
+    sourceMap.get(block.fileBelonged)!.push({
       originalLine: block.beginLine + 1, // 1 based line number in markdown
-      generatedLine: line + leadingLines, // 1 based line number in the generated mbt source
+      generatedLine: line.get(block.fileBelonged)! + leadingLines, // 1 based line number in the generated mbt source
     });
 
-    sourceMap.push({
+    sourceMap.get(block.fileBelonged)!.push({
       originalLine: block.endLine - 1,
-      generatedLine: line + leadingLines + contentLines,
+      generatedLine:
+        line.get(block.fileBelonged)! + leadingLines + contentLines,
     });
 
-    line += leadingLines + contentLines + trailingLines;
+    line.set(
+      block.fileBelonged,
+      line.get(block.fileBelonged)! +
+        leadingLines +
+        contentLines +
+        trailingLines
+    );
     block.content =
       wrapper.leading +
       (block.kind == "expr" || block.kind == "enclose"
         ? block.content.replace(/^/gm, "  ")
         : block.content) +
       wrapper.trailing;
-    processedCodeBlocks.push(block);
+    processedCodeBlocks.get(block.fileBelonged)!.push(block);
   });
 
   // map location to real location in markdown
@@ -263,28 +319,43 @@ function processMarkdown(inputFile) {
     return originalLine + (line - generatedLine);
   }
 
-  const source = processedCodeBlocks.reduce(
-    (acc, { content }) => acc + content,
-    ""
-  );
+  const source: Map<string, string> = new Map();
+
+  for (const [fileName, CodeBlocks] of processedCodeBlocks) {
+    const sourceCode = CodeBlocks.reduce(
+      (acc, { content }) => acc + content,
+      ""
+    );
+    source.set(fileName, sourceCode);
+  }
 
   // create a temporary project to run type checking and testing
-  const projectPath = makeTempProject(basename(inputFile, ".md"));
-  writeFileSync(join(projectPath, "main.mbt"), source, "utf-8");
+  source.forEach((s, fileName) => {
+    if (fileName == "top.mbt") {
+      writeFileSync(join(projectPath, fileName), s, "utf-8");
+    } else {
+      writeFileSync(join(projectPath, "lib", fileName), s, "utf-8");
+    }
+  });
 
   // run moon test
   const checkOutput = executeCommandLine(
     projectPath,
-    `moon check --output-json -q`
+    `moon check --output-json`
   );
 
   const errList = checkOutput
-    .replace(/error: failed when checking.*\n/, "")
     .split("\n")
     .map((err) => {
-      return JSON.parse(err) as Diagnostic;
-    });
+      try {
+        return JSON.parse(err) as Diagnostic;
+      } catch (error) {
+        return null;
+      }
+    })
+    .filter((err) => err != null);
 
+  console.log("Supressed: " + Array.from(errSet));
   for (const err of errList) {
     const { level, loc, message, error_code } = err;
     const { path, start, end } = loc;
@@ -301,13 +372,16 @@ function processMarkdown(inputFile) {
         ? "\x1b[1;33mWarning\x1b[0m"
         : level;
     const errCode = `\x1b[31m[E${error_code}]\x1b[0m`;
-    const realBeginLine = getRealLine(sourceMap, start.line);
-    const realEndLine = getRealLine(sourceMap, end.line);
+    const realBeginLine = getRealLine(
+      sourceMap.get(basename(path))!,
+      start.line
+    );
+    const realEndLine = getRealLine(sourceMap.get(basename(path))!, end.line);
     const errMsg = message.replace(
       new RegExp(path + ":(\\d+):(\\d+)"),
       (_, l, c) =>
         `\x1b[4;37m${inputFile}:${getRealLine(
-          sourceMap,
+          sourceMap.get(basename(path))!,
           parseInt(l)
         )}:${c}\x1b[0m`
     );
@@ -323,7 +397,8 @@ function processMarkdown(inputFile) {
 
   // dump generated code
   if (cli.values.dump) {
-    writeFileSync(inputFile + ".mbt", source, "utf-8");
+    // writeFileSync(inputFile + ".mbt", source, "utf-8");
+    cpSync(projectPath, inputFile + ".proj", { recursive: true });
   }
 
   // cleanup the temporary project
