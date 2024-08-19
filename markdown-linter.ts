@@ -206,6 +206,9 @@ function processMarkdown(inputFile) {
           case "enclose":
             kind = "enclose";
             break;
+          case "live":
+            kind = "no-check";
+            break;
           default:
             kind = "normal";
         }
